@@ -1,0 +1,50 @@
+{
+  "name": "@hedystia/better-auth-admin",
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zastinian/better-auth-admin.git"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "better-auth": "^1.1.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "bugs": {
+    "url": "https://github.com/Zastinian/better-auth-admin/issues"
+  },
+  "files": ["dist"],
+  "homepage": "https://github.com/Zastinian/better-auth-admin",
+  "keywords": ["better-auth", "admin", "plugin", "auth", "better", "permissions", "typescript"],
+  "license": "MIT",
+  "peerDependenciesMeta": {
+    "better-auth": {
+      "optional": false
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts"
+}
