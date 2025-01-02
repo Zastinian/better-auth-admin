@@ -182,6 +182,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
 
   const ERROR_CODES = {
     FAILED_TO_CREATE_USER: "Failed to create user",
+    ERROR_FETCHING_DATA: "Error fetching data",
     USER_ALREADY_EXISTS: "User already exists",
     USER_NOT_FOUND: "User not found",
     USER_NOT_HAS_ROLE: "User does not have role",
@@ -798,10 +799,9 @@ export const admin = <O extends AdminOptions>(options?: O) => {
             return ctx.json({
               users: users as UserWithRole[],
             });
-          } catch (e) {
-            console.log(e);
-            return ctx.json({
-              users: [],
+          } catch {
+            throw new APIError("INTERNAL_SERVER_ERROR", {
+              message: ERROR_CODES.ERROR_FETCHING_DATA,
             });
           }
         },
