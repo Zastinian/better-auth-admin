@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { APIError } from "better-call";
+import { APIError } from "better-auth/api";
 import { createAuthEndpoint, createAuthMiddleware } from "better-auth/plugins";
 import { getSessionFromCtx } from "better-auth/api";
 import type {
@@ -88,14 +88,14 @@ interface AdminOptions {
    * @default "user"
    */
   defaultRole?: string | false;
-	/**
-	 * The role required to access admin endpoints
-	 *
-	 * Can be an array of roles
-	 *
-	 * @default "admin"
-	 */
-	adminRole?: string | string[];
+  /**
+   * The role required to access admin endpoints
+   *
+   * Can be an array of roles
+   *
+   * @default "admin"
+   */
+  adminRole?: string | string[];
   /**
    * A default ban reason
    *
@@ -174,7 +174,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
   };
 
   const opts = {
-		adminRole: "admin",
+    adminRole: "admin",
     defaultRole: "user",
     ...options,
     permissions: { ...defaultPermissions, ...options?.permissions },
@@ -190,6 +190,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
     PERMISSION_DENIED: "Permission denied",
     ROLE_ALREADY_EXISTS: "Role already exists",
     ROLE_NOT_FOUND: "Role not found",
+    UNAUTHORIZED: "Unauthorized",
   } as const;
 
   const permissionsToString = (permissions: string[]): string => permissions.join(",");
@@ -228,7 +229,9 @@ export const admin = <O extends AdminOptions>(options?: O) => {
   const adminMiddleware = createAuthMiddleware(async (ctx) => {
     const session = await getSessionFromCtx(ctx);
     if (!session?.session) {
-      throw new APIError("UNAUTHORIZED");
+      throw new APIError("UNAUTHORIZED", {
+        message: ERROR_CODES.UNAUTHORIZED,
+      });
     }
     const user = session.user as UserWithRole;
     if (!user.roleId) {
@@ -1072,7 +1075,9 @@ export const admin = <O extends AdminOptions>(options?: O) => {
             }
           >(ctx);
           if (!session) {
-            throw new APIError("UNAUTHORIZED");
+            throw new APIError("UNAUTHORIZED", {
+              message: ERROR_CODES.UNAUTHORIZED,
+            });
           }
           if (!session.session.impersonatedBy) {
             throw new APIError("BAD_REQUEST", {
