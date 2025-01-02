@@ -118,28 +118,29 @@ interface AdminOptions {
    * Permissions for the admin plugin
    */
   permissions?: {
-    global: string;
-    createRole: string;
-    listPermissions: string;
-    listRoles: string;
-    updateRole: string;
-    getRole: string;
-    setRole: string;
-    banUser: string;
-    unBanUser: string;
-    impersonateUser: string;
-    stopImpersonating: string;
-    createUser: string;
-    updateUser: string;
-    deleteUser: string;
-    listUsers: string;
-    setUserRole: string;
-    listUserSessions: string;
-    revokeUserSession: string;
-    revokeUserSessions: string;
-    linkUser: string;
-    unlinkUser: string;
-    removeUser: string;
+    global?: string;
+    createRole?: string;
+    listPermissions?: string;
+    listRoles?: string;
+    updateRole?: string;
+    getRole?: string;
+    setRole?: string;
+    banUser?: string;
+    unBanUser?: string;
+    impersonateUser?: string;
+    stopImpersonating?: string;
+    createUser?: string;
+    updateUser?: string;
+    deleteUser?: string;
+    listUsers?: string;
+    setUserRole?: string;
+    listUserSessions?: string;
+    revokeUserSession?: string;
+    revokeUserSessions?: string;
+    linkUser?: string;
+    unlinkUser?: string;
+    removeUser?: string;
+    [key: string]: string | undefined;
   };
   /**
    * Custom schema for the admin plugin
