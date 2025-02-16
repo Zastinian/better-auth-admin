@@ -512,7 +512,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
             });
           }
           const adapter = getAdminAdapter(ctx.context);
-          const role = await adapter.findRoleByName(user.roleId);
+          const role = await adapter.findRoleById(user.roleId);
           if (!role) {
             throw new APIError("BAD_REQUEST", {
               message: ERROR_CODES.ROLE_NOT_FOUND,
