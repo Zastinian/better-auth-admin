@@ -155,6 +155,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
     listPermissions: "list_permissions",
     listRoles: "list_roles",
     updateRole: "update_role",
+    getMeRole: "get_me_role",
     getRole: "get_role",
     setRole: "set_role",
     banUser: "ban_user",
@@ -172,6 +173,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
     linkUser: "link_user",
     unlinkUser: "unlink_user",
     removeUser: "remove_user",
+    setUserPassword: "set_user_password",
   };
 
   const opts = {
@@ -250,7 +252,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
           databaseHooks: {
             user: {
               create: {
-                async before(user) {
+                async before() {
                   if (options?.defaultRole === false) return;
                   const adapter = getAdminAdapter(ctx);
                   let defaultRole = await adapter.findRoleByName(options?.defaultRole ?? "user");
@@ -267,7 +269,6 @@ export const admin = <O extends AdminOptions>(options?: O) => {
                   return {
                     data: {
                       roleId: defaultRole.id,
-                      ...user,
                     },
                   };
                 },
@@ -470,6 +471,59 @@ export const admin = <O extends AdminOptions>(options?: O) => {
             permissions,
           });
           return ctx.json({ role });
+        },
+      ),
+      getMeRole: createAuthEndpoint(
+        "/admin/get-me-role",
+        {
+          method: "GET",
+          use: [adminMiddleware],
+          metadata: {
+            openapi: {
+              operationId: "getMeRole",
+              summary: "Get the role of the current user",
+              description: "Get the role of the current user",
+              responses: {
+                200: {
+                  description: "Success",
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: {
+                          role: {
+                            $ref: "#/components/schemas/Role",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        async (ctx) => {
+          await checkPermission(ctx, opts.permissions.getMeRole);
+          const user = ctx.context.session.user as UserWithRole;
+          if (!user.roleId) {
+            throw new APIError("BAD_REQUEST", {
+              message: ERROR_CODES.USER_NOT_HAS_ROLE,
+            });
+          }
+          const adapter = getAdminAdapter(ctx.context);
+          const role = await adapter.findRoleByName(user.roleId);
+          if (!role) {
+            throw new APIError("BAD_REQUEST", {
+              message: ERROR_CODES.ROLE_NOT_FOUND,
+            });
+          }
+          const permissions = stringToPermissions(role.permissions);
+          const r = {
+            ...role,
+            permissions,
+          };
+          return ctx.json({ role: r });
         },
       ),
       getRole: createAuthEndpoint(
@@ -1235,6 +1289,49 @@ export const admin = <O extends AdminOptions>(options?: O) => {
           await ctx.context.internalAdapter.deleteUser(ctx.body.userId);
           return ctx.json({
             success: true,
+          });
+        },
+      ),
+      setUserPassword: createAuthEndpoint(
+        "/admin/set-user-password",
+        {
+          method: "POST",
+          body: z.object({
+            newPassword: z.string(),
+            userId: z.string(),
+          }),
+          use: [adminMiddleware],
+          metadata: {
+            openapi: {
+              operationId: "setUserPassword",
+              summary: "Set the password of a user",
+              description: "Set the password of a user",
+              responses: {
+                200: {
+                  description: "Password updated",
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: {
+                          status: {
+                            type: "boolean",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        async (ctx) => {
+          await checkPermission(ctx, opts.permissions.setUserPassword);
+          const hashedPassword = await ctx.context.password.hash(ctx.body.newPassword);
+          await ctx.context.internalAdapter.updatePassword(ctx.body.userId, hashedPassword);
+          return ctx.json({
+            status: true,
           });
         },
       ),
