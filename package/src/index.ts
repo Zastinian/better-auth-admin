@@ -146,6 +146,12 @@ interface AdminOptions {
    * Custom schema for the admin plugin
    */
   schema?: InferOptionSchema<typeof schema>;
+  /**
+   * List of user ids that should have admin access
+   *
+   * If this is set, the `adminRole` option is ignored
+   */
+  adminUserIds?: string[];
 }
 
 export const admin = <O extends AdminOptions>(options?: O) => {
@@ -202,7 +208,21 @@ export const admin = <O extends AdminOptions>(options?: O) => {
     permissions ? permissions.split(",") : [];
 
   const checkPermission = async (ctx: GenericEndpointContext, requiredPermission: string) => {
-    const user = ctx.context.session?.user as UserWithRole;
+    const session = await getSessionFromCtx(ctx);
+    if (!session?.session) {
+      throw new APIError("UNAUTHORIZED", {
+        message: ERROR_CODES.UNAUTHORIZED,
+      });
+    }
+    const user = session.user as UserWithRole;
+    if (options?.adminUserIds?.includes(user.id)) {
+      return {
+        session: {
+          user: user,
+          session: session.session,
+        },
+      };
+    }
     if (!user.roleId) {
       throw new APIError("FORBIDDEN", {
         message: ERROR_CODES.USER_NOT_HAS_ROLE,
@@ -237,6 +257,14 @@ export const admin = <O extends AdminOptions>(options?: O) => {
       });
     }
     const user = session.user as UserWithRole;
+    if (options?.adminUserIds?.includes(user.id)) {
+      return {
+        session: {
+          user: user,
+          session: session.session,
+        },
+      };
+    }
     if (!user.roleId) {
       throw new APIError("FORBIDDEN", {
         message: ERROR_CODES.USER_NOT_HAS_ROLE,
@@ -276,17 +304,21 @@ export const admin = <O extends AdminOptions>(options?: O) => {
             },
             session: {
               create: {
-                async before(session) {
+                async before(session, context) {
                   const user = (await ctx.internalAdapter.findUserById(
                     session.userId,
                   )) as UserWithRole;
                   if (user.banned) {
                     if (user.banExpires && user.banExpires.getTime() < Date.now()) {
-                      await ctx.internalAdapter.updateUser(session.userId, {
-                        banned: false,
-                        banReason: null,
-                        banExpires: null,
-                      });
+                      await ctx.internalAdapter.updateUser(
+                        session.userId,
+                        {
+                          banned: false,
+                          banReason: null,
+                          banExpires: null,
+                        },
+                        context,
+                      );
                       return;
                     }
                     return false;
@@ -625,9 +657,13 @@ export const admin = <O extends AdminOptions>(options?: O) => {
               message: ERROR_CODES.ROLE_NOT_FOUND,
             });
           }
-          const updatedUser = await ctx.context.internalAdapter.updateUser(ctx.body.userId, {
-            roleId: role.id,
-          });
+          const updatedUser = await ctx.context.internalAdapter.updateUser(
+            ctx.body.userId,
+            {
+              roleId: role.id,
+            },
+            ctx,
+          );
           return ctx.json({
             user: updatedUser as UserWithRole,
           });
@@ -693,12 +729,15 @@ export const admin = <O extends AdminOptions>(options?: O) => {
               message: ERROR_CODES.USER_ALREADY_EXISTS,
             });
           }
-          const user = await ctx.context.internalAdapter.createUser<UserWithRole>({
-            email: ctx.body.email,
-            name: ctx.body.name,
-            role: ctx.body.role,
-            ...ctx.body.data,
-          });
+          const user = await ctx.context.internalAdapter.createUser<UserWithRole>(
+            {
+              email: ctx.body.email,
+              name: ctx.body.name,
+              role: ctx.body.role,
+              ...ctx.body.data,
+            },
+            ctx,
+          );
 
           if (!user) {
             throw new APIError("INTERNAL_SERVER_ERROR", {
@@ -706,12 +745,15 @@ export const admin = <O extends AdminOptions>(options?: O) => {
             });
           }
           const hashedPassword = await ctx.context.password.hash(ctx.body.password);
-          await ctx.context.internalAdapter.linkAccount({
-            accountId: user.id,
-            providerId: "credential",
-            password: hashedPassword,
-            userId: user.id,
-          });
+          await ctx.context.internalAdapter.linkAccount(
+            {
+              accountId: user.id,
+              providerId: "credential",
+              password: hashedPassword,
+              userId: user.id,
+            },
+            ctx,
+          );
           return ctx.json({
             user: user as UserWithRole,
           });
@@ -797,6 +839,15 @@ export const admin = <O extends AdminOptions>(options?: O) => {
                             items: {
                               $ref: "#/components/schemas/User",
                             },
+                            total: {
+                              type: "number",
+                            },
+                            limit: {
+                              type: ["number", "undefined"],
+                            },
+                            offset: {
+                              type: ["number", "undefined"],
+                            },
                           },
                         },
                       },
@@ -854,12 +905,17 @@ export const admin = <O extends AdminOptions>(options?: O) => {
                 : undefined,
               where.length ? where : undefined,
             );
+            const total = await ctx.context.internalAdapter.countTotalUsers();
             return ctx.json({
               users: users as UserWithRole[],
+              total: total,
+              limit: Number(ctx.query?.limit) || undefined,
+              offset: Number(ctx.query?.offset) || undefined,
             });
           } catch {
-            throw new APIError("INTERNAL_SERVER_ERROR", {
-              message: ERROR_CODES.ERROR_FETCHING_DATA,
+            return ctx.json({
+              users: [],
+              total: 0,
             });
           }
         },
@@ -947,9 +1003,15 @@ export const admin = <O extends AdminOptions>(options?: O) => {
         },
         async (ctx) => {
           await checkPermission(ctx, opts.permissions.unBanUser);
-          const user = await ctx.context.internalAdapter.updateUser(ctx.body.userId, {
-            banned: false,
-          });
+          const user = await ctx.context.internalAdapter.updateUser(
+            ctx.body.userId,
+            {
+              banned: false,
+              banReason: null,
+              banExpires: null,
+            },
+            ctx,
+          );
           return ctx.json({
             user: user,
           });
@@ -1013,15 +1075,19 @@ export const admin = <O extends AdminOptions>(options?: O) => {
               message: ERROR_CODES.YOU_CANNOT_BAN_YOURSELF,
             });
           }
-          const user = await ctx.context.internalAdapter.updateUser(ctx.body.userId, {
-            banned: true,
-            banReason: ctx.body.banReason || options?.defaultBanReason || "No reason",
-            banExpires: ctx.body.banExpiresIn
-              ? getDate(ctx.body.banExpiresIn, "sec")
-              : options?.defaultBanExpiresIn
-                ? getDate(options.defaultBanExpiresIn, "sec")
-                : undefined,
-          });
+          const user = await ctx.context.internalAdapter.updateUser(
+            ctx.body.userId,
+            {
+              banned: true,
+              banReason: ctx.body.banReason || options?.defaultBanReason || "No reason",
+              banExpires: ctx.body.banExpiresIn
+                ? getDate(ctx.body.banExpiresIn, "sec")
+                : options?.defaultBanExpiresIn
+                  ? getDate(options.defaultBanExpiresIn, "sec")
+                  : undefined,
+            },
+            ctx,
+          );
           //revoke all sessions
           await ctx.context.internalAdapter.deleteSessions(ctx.body.userId);
           return ctx.json({
@@ -1087,6 +1153,8 @@ export const admin = <O extends AdminOptions>(options?: O) => {
                 ? getDate(options.impersonationSessionDuration, "sec")
                 : getDate(60 * 60, "sec"), // 1 hour
             },
+            ctx,
+            true,
           );
           if (!session) {
             throw new APIError("INTERNAL_SERVER_ERROR", {
@@ -1329,7 +1397,7 @@ export const admin = <O extends AdminOptions>(options?: O) => {
         async (ctx) => {
           await checkPermission(ctx, opts.permissions.setUserPassword);
           const hashedPassword = await ctx.context.password.hash(ctx.body.newPassword);
-          await ctx.context.internalAdapter.updatePassword(ctx.body.userId, hashedPassword);
+          await ctx.context.internalAdapter.updatePassword(ctx.body.userId, hashedPassword, ctx);
           return ctx.json({
             status: true,
           });
