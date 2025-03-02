@@ -1,6 +1,6 @@
 {
   "name": "@hedystia/better-auth-admin",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Zastinian/better-auth-admin.git"
@@ -13,7 +13,7 @@
     "typescript": "^5.7.2"
   },
   "peerDependencies": {
-    "better-auth": "^1.1.0"
+    "better-auth": "^1.2.0"
   },
   "exports": {
     ".": {
