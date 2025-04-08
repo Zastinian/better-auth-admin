@@ -1,3 +1,5 @@
+# The developers of better auth already added the ability to have roles in their admin plugin, use that addon instead of this one
+
 <div align="center">
   <p>
     <strong>🛡️ @hedystia/better-auth-admin</strong>
